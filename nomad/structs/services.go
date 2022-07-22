@@ -17,6 +17,7 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-set"
 	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/helper/args"
 	"github.com/mitchellh/copystructure"
@@ -902,20 +903,7 @@ func (s *Service) Equals(o *Service) bool {
 		return false
 	}
 
-	if len(s.Checks) != len(o.Checks) {
-		return false
-	}
-
-OUTER:
-	for i := range s.Checks {
-		for ii := range o.Checks {
-			if s.Checks[i].Equals(o.Checks[ii]) {
-				// Found match; continue with next check
-				continue OUTER
-			}
-		}
-
-		// No match
+	if !helper.ElementsEquals(s.Checks, o.Checks) {
 		return false
 	}
 
@@ -1380,10 +1368,7 @@ func (p *ConsulProxy) Copy() *ConsulProxy {
 
 	if n := len(p.Upstreams); n > 0 {
 		newP.Upstreams = make([]ConsulUpstream, n)
-
-		for i := range p.Upstreams {
-			newP.Upstreams[i] = *p.Upstreams[i].Copy()
-		}
+		copy(newP.Upstreams, p.Upstreams)
 	}
 
 	if n := len(p.Config); n > 0 {
@@ -1454,12 +1439,8 @@ type ConsulMeshGateway struct {
 	Mode string
 }
 
-func (c *ConsulMeshGateway) Copy() *ConsulMeshGateway {
-	if c == nil {
-		return nil
-	}
-
-	return &ConsulMeshGateway{
+func (c ConsulMeshGateway) Copy() ConsulMeshGateway {
+	return ConsulMeshGateway{
 		Mode: c.Mode,
 	}
 }
@@ -1506,64 +1487,13 @@ type ConsulUpstream struct {
 
 	// MeshGateway is the optional configuration of the mesh gateway for this
 	// upstream to use.
-	MeshGateway *ConsulMeshGateway
+	MeshGateway ConsulMeshGateway
 }
 
 func upstreamsEquals(a, b []ConsulUpstream) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-LOOP: // order does not matter
-	for _, upA := range a {
-		for _, upB := range b {
-			if upA.Equals(&upB) {
-				continue LOOP
-			}
-		}
-		return false
-	}
-	return true
-}
-
-// Copy the stanza recursively. Returns nil if u is nil.
-func (u *ConsulUpstream) Copy() *ConsulUpstream {
-	if u == nil {
-		return nil
-	}
-
-	return &ConsulUpstream{
-		DestinationName:      u.DestinationName,
-		DestinationNamespace: u.DestinationNamespace,
-		LocalBindPort:        u.LocalBindPort,
-		Datacenter:           u.Datacenter,
-		LocalBindAddress:     u.LocalBindAddress,
-		MeshGateway:          u.MeshGateway.Copy(),
-	}
-}
-
-// Equals returns true if the structs are recursively equal.
-func (u *ConsulUpstream) Equals(o *ConsulUpstream) bool {
-	if u == nil || o == nil {
-		return u == o
-	}
-
-	switch {
-	case u.DestinationName != o.DestinationName:
-		return false
-	case u.DestinationNamespace != o.DestinationNamespace:
-		return false
-	case u.LocalBindPort != o.LocalBindPort:
-		return false
-	case u.Datacenter != o.Datacenter:
-		return false
-	case u.LocalBindAddress != o.LocalBindAddress:
-		return false
-	case !u.MeshGateway.Equals(o.MeshGateway):
-		return false
-	}
-
-	return true
+	setA := set.From(a)
+	setB := set.From(b)
+	return setA.Equal(setB)
 }
 
 // ConsulExposeConfig represents a Consul Connect expose jobspec stanza.
@@ -1579,21 +1509,10 @@ type ConsulExposePath struct {
 	ListenerPort  string
 }
 
-func exposePathsEqual(pathsA, pathsB []ConsulExposePath) bool {
-	if len(pathsA) != len(pathsB) {
-		return false
-	}
-
-LOOP: // order does not matter
-	for _, pathA := range pathsA {
-		for _, pathB := range pathsB {
-			if pathA == pathB {
-				continue LOOP
-			}
-		}
-		return false
-	}
-	return true
+func exposePathsEqual(a, b []ConsulExposePath) bool {
+	setA := set.From(a)
+	setB := set.From(b)
+	return setA.Equal(setB)
 }
 
 // Copy the stanza. Returns nil if e is nil.
@@ -2059,20 +1978,7 @@ func (l *ConsulIngressListener) Validate() error {
 }
 
 func ingressServicesEqual(servicesA, servicesB []*ConsulIngressService) bool {
-	if len(servicesA) != len(servicesB) {
-		return false
-	}
-
-COMPARE: // order does not matter
-	for _, serviceA := range servicesA {
-		for _, serviceB := range servicesB {
-			if serviceA.Equals(serviceB) {
-				continue COMPARE
-			}
-		}
-		return false
-	}
-	return true
+	return helper.ElementsEquals(servicesA, servicesB)
 }
 
 // ConsulIngressConfigEntry represents the Consul Configuration Entry type for
@@ -2134,20 +2040,7 @@ func (e *ConsulIngressConfigEntry) Validate() error {
 }
 
 func ingressListenersEqual(listenersA, listenersB []*ConsulIngressListener) bool {
-	if len(listenersA) != len(listenersB) {
-		return false
-	}
-
-COMPARE: // order does not matter
-	for _, listenerA := range listenersA {
-		for _, listenerB := range listenersB {
-			if listenerA.Equals(listenerB) {
-				continue COMPARE
-			}
-		}
-		return false
-	}
-	return true
+	return helper.ElementsEquals(listenersA, listenersB)
 }
 
 type ConsulLinkedService struct {
@@ -2223,20 +2116,7 @@ func (s *ConsulLinkedService) Validate() error {
 }
 
 func linkedServicesEqual(servicesA, servicesB []*ConsulLinkedService) bool {
-	if len(servicesA) != len(servicesB) {
-		return false
-	}
-
-COMPARE: // order does not matter
-	for _, serviceA := range servicesA {
-		for _, serviceB := range servicesB {
-			if serviceA.Equals(serviceB) {
-				continue COMPARE
-			}
-		}
-		return false
-	}
-	return true
+	return helper.ElementsEquals(servicesA, servicesB)
 }
 
 type ConsulTerminatingConfigEntry struct {
