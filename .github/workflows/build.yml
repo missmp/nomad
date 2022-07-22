@@ -235,7 +235,7 @@ jobs:
 
   build-darwin:
     needs: [get-go-version, get-product-version]
-    runs-on: macos-latest
+    runs-on: macos-12
     strategy:
       matrix:
         goos: [darwin]
