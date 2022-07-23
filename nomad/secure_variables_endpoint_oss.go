@@ -5,6 +5,6 @@ package nomad
 
 import "github.com/hashicorp/nomad/nomad/structs"
 
-func (sv *SecureVariables) enforceQuota(uArgs structs.SecureVariablesEncryptedUpsertRequest) error {
+func (sv *SecureVariables) enforceQuota(uArgs structs.SecureVariablesApplyRequest) error {
 	return nil
 }
